@@ -110,7 +110,7 @@ void main() {
         'en': {'greet': 'Hello'},
         'de': {'greet': 'Hallo'},
       });
-      final code = generateTs(model);
+      final code = generateJs(model);
       expect(code, contains('export function t'));
       expect(code, contains("'greet'"));
     });
@@ -123,10 +123,10 @@ void main() {
     });
   });
 
-  group('escapeDart and escapeTs', () {
-    test('escapes Dart and TS strings', () {
+  group('escapeDart and escapeJs', () {
+    test('escapes Dart and JS strings', () {
       expect(escapeDart("a'b\nc"), "a'b\\nc");
-      expect(escapeTs("a'b\nc"), "a'b\\nc");
+      expect(escapeJs("a'b\nc"), "a'b\\nc");
     });
   });
 }

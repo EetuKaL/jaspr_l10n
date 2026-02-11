@@ -5,7 +5,7 @@ import 'package:jaspr_l10n/jaspr_l10n.dart';
 void main(List<String> args) async {
   String from = kFrom;
   String dartOut = kDartOut;
-  String tsOut = kTsOut;
+  String jsOut = kJsOut;
   String? fallbackLang;
   for (int i = 0; i < args.length; i++) {
     final param = args[i];
@@ -14,8 +14,8 @@ void main(List<String> args) async {
       from = arg;
     } else if (param == '-d' || param == '--dart-out') {
       dartOut = arg;
-    } else if (param == '-t' || param == '--ts-out') {
-      tsOut = arg;
+    } else if (param == '-j' || param == '--js-out') {
+      jsOut = arg;
     } else if (param == '-f' || param == '--fallback-language') {
       fallbackLang = arg;
     } else {
@@ -27,15 +27,15 @@ void main(List<String> args) async {
 
   final arbDir = Directory(from);
   final outDart = File(dartOut);
-  final outTs = File(tsOut);
+  final outJs = File(jsOut);
 
   final bundles = await loadArbBundles(arbDir);
   final model = buildModel(bundles);
   validateModel(model, fallbackLang: fallbackLang);
 
   await outDart.create(recursive: true);
-  await outTs.create(recursive: true);
+  await outJs.create(recursive: true);
 
   await outDart.writeAsString(generateDart(model));
-  await outTs.writeAsString(generateTs(model));
+  await outJs.writeAsString(generateJs(model));
 }

@@ -4,7 +4,7 @@ import 'dart:io';
 
 const kFrom = 'lib/l10n';
 const kDartOut = 'lib/generated/l10n.g.dart';
-const kTsOut = 'web/generated/l10n.ts';
+const kJsOut = 'web/generated/l10n.js';
 
 void printHelp() {
   print('Usage: dart tool/l10n_gen.dart');
@@ -12,7 +12,7 @@ void printHelp() {
   print('Parameters:');
   print(' -a/--arbs <Directory>   Source directory for .arb files (default: $kFrom)');
   print(' -d/--dart-out <File>    Output Dart file (default: $kDartOut)');
-  print(' -t/--ts-out <File>      Output TypeScript file (default: $kTsOut)');
+  print(' -j/--js-out <File>      Output JavaScript file (default: $kJsOut)');
   print(
     ' -f/--fallback-language  Fallback language code to use if some locale is missing a key (e.g. "en"), Otherwise arbs must have same keys, or generation will fail.',
   );
@@ -143,33 +143,44 @@ String generateDart(L10nModel model) {
   return b.toString();
 }
 
-String generateTs(L10nModel model) {
+String generateJs(L10nModel model) {
   final b = StringBuffer();
   b.writeln('// GENERATED - do not edit.');
-  b.writeln('export const locales = [${model.locales.map((l) => "'$l'").join(', ')}] as const;');
-  b.writeln('export type Locale = typeof locales[number];');
+
+  // locales array
+  b.writeln('export const locales = [${model.locales.map((l) => "'$l'").join(', ')}];');
 
   final keys = model.entries.keys.toList()..sort();
-  b.writeln('export type Key = ${keys.map((k) => "'$k'").join(' | ')};');
 
-  b.writeln('const strings: Record<Key, Record<Locale, string>> = {');
+  // strings object
+  b.writeln('const strings = {');
   for (final key in keys) {
     b.writeln("  '$key': {");
     for (final loc in model.locales) {
-      final v = escapeTs(model.entries[key]!.valuesByLocale[loc]!);
+      final v = escapeJs(model.entries[key]!.valuesByLocale[loc]!);
       b.writeln("    '$loc': '$v',");
     }
     b.writeln('  },');
   }
   b.writeln('};');
 
-  b.writeln('export function t(locale: Locale, key: Key, params: Record<string, any> = {}): string {');
-  b.writeln('  const s = strings[key]?.[locale] ?? strings[key]?.[("en" as Locale)] ?? key;');
-  b.writeln('  return interpolate(s, params);');
+  // createT(locale) -> (key, params) => string
+  b.writeln('export function createT(locale) {');
+  b.writeln('  const loc = (locales.includes(locale) ? locale : "en");');
+  b.writeln('  return function t(key, params = {}) {');
+  b.writeln(
+    '    const s = (strings[key] && strings[key][loc])'
+    ' || (strings[key] && strings[key]["en"])'
+    ' || key;',
+  );
+  b.writeln('    return interpolate(s, params);');
+  b.writeln('  };');
   b.writeln('}');
 
-  b.writeln('function interpolate(s: string, params: Record<string, any>): string {');
-  b.writeln('  return s.replace(/\\{([a-zA-Z_][a-zA-Z0-9_]*)\\}/g, (_, k) => String(params[k] ?? ""));');
+  b.writeln('function interpolate(s, params) {');
+  b.writeln(
+    '  return String(s).replace(/\\{([a-zA-Z_][a-zA-Z0-9_]*)\\}/g, (_, k) => String((params && params[k] != null) ? params[k] : ""));',
+  );
   b.writeln('}');
   return b.toString();
 }
@@ -182,7 +193,7 @@ String toSafeDartIdentifier(String key) {
 
 String escapeDart(String s) => s.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll('\n', r'\n');
 
-String escapeTs(String s) => s.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll('\n', r'\n');
+String escapeJs(String s) => s.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll('\n', r'\n');
 
 class L10nModel {
   final List<String> locales;
