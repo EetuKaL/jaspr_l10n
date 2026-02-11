@@ -5,7 +5,7 @@ void main() {
   group('printHelp', () {
     test('prints usage information', () {
       // Just check that it doesn't throw
-      expect(() => printHelp('src', 'out.dart', 'out.ts'), returnsNormally);
+      expect(() => printHelp(), returnsNormally);
     });
   });
 

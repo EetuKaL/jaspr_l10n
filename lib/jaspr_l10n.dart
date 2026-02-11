@@ -2,13 +2,17 @@
 import 'dart:convert';
 import 'dart:io';
 
-void printHelp(String src, String dartDst, String tsDst) {
+const kFrom = 'lib/l10n';
+const kDartOut = 'lib/generated/l10n.g.dart';
+const kTsOut = 'web/generated/l10n.ts';
+
+void printHelp() {
   print('Usage: dart tool/l10n_gen.dart');
   print('Generates Localization files from .arb bundles, one for Dart and one for TypeScript.');
   print('Parameters:');
-  print(' -a/--arbs <Directory>   Source directory for .arb files (default: $src)');
-  print(' -d/--dart-out <File>    Output Dart file (default: $dartDst)');
-  print(' -t/--ts-out <File>      Output TypeScript file (default: $tsDst)');
+  print(' -a/--arbs <Directory>   Source directory for .arb files (default: $kFrom)');
+  print(' -d/--dart-out <File>    Output Dart file (default: $kDartOut)');
+  print(' -t/--ts-out <File>      Output TypeScript file (default: $kTsOut)');
   print(
     ' -f/--fallback-language  Fallback language code to use if some locale is missing a key (e.g. "en"), Otherwise arbs must have same keys, or generation will fail.',
   );

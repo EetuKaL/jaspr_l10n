@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:jaspr_l10n/jaspr_l10n.dart';
 
 void main(List<String> args) async {
-  String from = 'lib/l10n';
-  String dartOut = 'lib/generated/l10n.g.dart';
-  String tsOut = 'web/generated/l10n.ts';
+  String from = kFrom;
+  String dartOut = kDartOut;
+  String tsOut = kTsOut;
   String? fallbackLang;
   for (int i = 0; i < args.length; i++) {
     final param = args[i];
@@ -16,8 +16,10 @@ void main(List<String> args) async {
       dartOut = arg;
     } else if (param == '-t' || param == '--ts-out') {
       tsOut = arg;
+    } else if (param == '-f' || param == '--fallback-language') {
+      fallbackLang = arg;
     } else {
-      printHelp(from, dartOut, tsOut);
+      printHelp();
       throw ArgumentError('Unknown parameter: $param');
     }
     i++;
