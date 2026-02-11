@@ -1,4 +1,4 @@
-import 'package:jaspr_l10n/jaspr_l10n.dart';
+import 'package:static_jaspr_l10n/static_jaspr_l10n.dart';
 import 'package:test/test.dart';
 
 void main() {

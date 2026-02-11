@@ -1,6 +1,7 @@
 // tool/l10n_gen.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 const kFrom = 'lib/l10n';
 const kDartOut = 'lib/generated/l10n.g.dart';
@@ -99,48 +100,154 @@ Set<String> inferPlaceholdersFromAnyValue(Iterable<String> values) {
 
 String generateDart(L10nModel model) {
   final b = StringBuffer();
+
   b.writeln('// GENERATED - do not edit.');
-  b.writeln("const supportedLocales = <String>[${model.locales.map((l) => "'$l'").join(', ')}];");
-
-  b.writeln('const _strings = <String, Map<String, String>>{');
-  for (final e in model.entries.values) {
-    b.writeln("  '${e.key}': {");
-    for (final loc in model.locales) {
-      final v = escapeDart(e.valuesByLocale[loc]!);
-      b.writeln("    '$loc': '$v',");
-    }
-    b.writeln('  },');
-  }
-  b.writeln('};');
-
+  b.writeln("import 'dart:convert';");
+  b.writeln("import 'package:jaspr/jaspr.dart';");
+  b.writeln("import 'package:jaspr/dom.dart';");
+  b.writeln('');
   b.writeln('class L10n {');
-  b.writeln('  final String locale;');
-  b.writeln('  const L10n(this.locale);');
-
-  b.writeln('  String t(String key, [Map<String, Object?> params = const {}]) {');
-  b.writeln('    final s = _strings[key]?[locale] ?? _strings[key]?["en"] ?? key;');
-  b.writeln('    return _interpolate(s, params);');
+  b.writeln('  const L10n();');
+  b.writeln('');
+  b.writeln('  static Component getSpan(String key, {Map<String, Object?>? params}) {');
+  b.writeln('    return span(');
+  b.writeln('      attributes: {');
+  b.writeln("        'data-i18n': key,");
+  b.writeln("        if (params != null) 'data-i18n-params': jsonEncode(params),");
+  b.writeln('      },');
+  b.writeln('      const [],');
+  b.writeln('    );');
   b.writeln('  }');
+  b.writeln('');
 
-  b.writeln('  static String _interpolate(String s, Map<String, Object?> params) {');
-  b.writeln('    var out = s;');
-  b.writeln(r'    params.forEach((k, v) { out = out.replaceAll("{$k}", "\${v ?? ""}"); });');
-  b.writeln('    return out;');
-  b.writeln('  }');
+  // Collect keys
+  final keys = model.entries.keys.toList()..sort();
 
-  for (final e in model.entries.values) {
-    final dartName = toSafeDartIdentifier(e.key);
-    if (e.placeholders.isEmpty) {
-      b.writeln('  String get $dartName => t(\'${e.key}\');');
+  // Write getters/methods
+  for (final key in keys) {
+    final params = _extractParamsForKey(model, key).toList()..sort();
+
+    final memberName = _toMemberName(key);
+
+    if (params.isEmpty) {
+      // getter
+      b.writeln('  static Component get $memberName => L10n.getSpan(\'$key\');');
     } else {
-      final paramsSig = e.placeholders.map((p) => 'required Object $p').join(', ');
-      final paramsMap = e.placeholders.map((p) => "'$p': $p").join(', ');
-      b.writeln('  String $dartName({$paramsSig}) => t(\'${e.key}\', {$paramsMap});');
+      // method with named required params
+      final sig = params.map((p) => 'required String? ${_toParamName(p)}').join(', ');
+      final mapEntries = params.map((p) => "'$p': ${_toParamName(p)}").join(', ');
+      b.writeln('  static Component $memberName({$sig}) =>');
+      b.writeln('      L10n.getSpan(\'$key\', params: {$mapEntries});');
     }
+    b.writeln('');
   }
 
   b.writeln('}');
+  b.writeln('');
+  b.writeln('const l10n = L10n();');
+
   return b.toString();
+}
+
+/// Union of {placeholders} across all locales for a given key.
+Iterable<String> _extractParamsForKey(L10nModel model, String key) sync* {
+  final entry = model.entries[key];
+  if (entry == null) return;
+
+  final seen = <String>{};
+  final re = RegExp(r'\{([a-zA-Z_][a-zA-Z0-9_]*)\}');
+
+  for (final loc in model.locales) {
+    final s = entry.valuesByLocale[loc];
+    if (s == null) continue;
+
+    for (final m in re.allMatches(s)) {
+      final name = m.group(1);
+      if (name != null && seen.add(name)) yield name;
+    }
+  }
+}
+
+String _toMemberName(String key) {
+  // e.g. "welcome.message" -> "welcomeMessage"
+  final pascal = _toPascalCase(_sanitizeParts(key));
+  final camel = pascal.isEmpty ? 'key' : (pascal[0].toLowerCase() + pascal.substring(1));
+  return _avoidReserved(camel);
+}
+
+String _toParamName(String p) => _avoidReserved(_toMemberName(p));
+
+List<String> _sanitizeParts(String s) {
+  // Split on non-identifier chars
+  final parts = s.split(RegExp(r'[^a-zA-Z0-9_]+')).where((x) => x.isNotEmpty).toList();
+  if (parts.isEmpty) return ['key'];
+  // If starts with digit, prefix
+  if (RegExp(r'^\d').hasMatch(parts.first)) parts[0] = 'k${parts.first}';
+  return parts;
+}
+
+String _toPascalCase(List<String> parts) {
+  return parts.map((p) {
+    if (p.isEmpty) return '';
+    final lower = p.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
+  }).join();
+}
+
+String _avoidReserved(String name) {
+  const reserved = {
+    'class',
+    'enum',
+    'extends',
+    'with',
+    'implements',
+    'import',
+    'export',
+    'library',
+    'part',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'do',
+    'switch',
+    'case',
+    'default',
+    'break',
+    'continue',
+    'try',
+    'catch',
+    'finally',
+    'throw',
+    'new',
+    'const',
+    'var',
+    'final',
+    'static',
+    'void',
+    'true',
+    'false',
+    'null',
+    'this',
+    'super',
+    'in',
+    'is',
+    'as',
+    'assert',
+    'async',
+    'await',
+    'yield',
+    'get',
+    'set',
+    'operator',
+    'mixin',
+    'on',
+    'typedef',
+    'late',
+    'required',
+  };
+  return reserved.contains(name) ? '${name}_' : name;
 }
 
 String generateJs(L10nModel model) {
@@ -183,6 +290,18 @@ String generateJs(L10nModel model) {
   );
   b.writeln('}');
   return b.toString();
+}
+
+Future<File> packageFileFromLib(String libPath) async {
+  const packageName = 'static_jaspr_l10n';
+
+  final uri = await Isolate.resolvePackageUri(Uri.parse('package:$packageName/$libPath'));
+
+  if (uri == null) {
+    throw StateError('Could not resolve package:$packageName/$libPath');
+  }
+
+  return File.fromUri(uri);
 }
 
 String toSafeDartIdentifier(String key) {

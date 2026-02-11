@@ -1,6 +1,7 @@
 // tool/l10n_gen.dart
 import 'dart:io';
-import 'package:jaspr_l10n/jaspr_l10n.dart';
+
+import 'package:static_jaspr_l10n/static_jaspr_l10n.dart';
 
 void main(List<String> args) async {
   String from = kFrom;
@@ -28,6 +29,7 @@ void main(List<String> args) async {
   final arbDir = Directory(from);
   final outDart = File(dartOut);
   final outJs = File(jsOut);
+  final hydrateJs = await packageFileFromLib('l10n_hydrate/l10n_hydrate.js');
 
   final bundles = await loadArbBundles(arbDir);
   final model = buildModel(bundles);
@@ -37,5 +39,5 @@ void main(List<String> args) async {
   await outJs.create(recursive: true);
 
   await outDart.writeAsString(generateDart(model));
-  await outJs.writeAsString(generateJs(model));
+  await outJs.writeAsString('${hydrateJs.readAsStringSync()}\n${generateJs(model)}');
 }
